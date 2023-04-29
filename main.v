@@ -9,64 +9,79 @@ fn cp_all(src string, dst string, overwrite bool, mut logger log.Log) ! {
 	logger.info(source_path)
 	dest_path := os.real_path(dst)
 	if !os.exists(source_path) {
-		return error("Source path doesn't exist")
+		return error("Source path does not exist")
 	}
 	// single file copy
 	if !os.is_dir(source_path) {
-		file_name := os.file_name(source_path)
-		adjusted_path := if os.is_dir(dest_path) {
-			os.join_path_single(dest_path, file_name)
-		} else {
-			dest_path
-		}
-		if os.exists(adjusted_path) {
-			if overwrite {
-				os.rm(adjusted_path)!
+		if os.is_readable(source_path) {
+			file_name := os.file_name(source_path)
+			adjusted_path := if os.is_dir(dest_path) {
+				os.join_path_single(dest_path, file_name)
 			} else {
-				return error('Destination file path already exist')
+				dest_path
 			}
+			if os.exists(adjusted_path) {
+				if overwrite {
+					os.rm(adjusted_path)!
+				} else {
+					return error("Destination file path already exist")
+				}
+			}
+			os.cp(source_path, adjusted_path)!
+		} else {
+			logger.error("Target unreadable: " + source_path)
 		}
-		os.cp(source_path, adjusted_path)!
 		return
 	}
 	if !os.exists(dest_path) {
 		os.mkdir(dest_path)!
 	}
 	if !os.is_dir(dest_path) {
-		return error('Destination path is not a valid directory')
+		return error("Destination path is not a valid directory")
 	}
-	files := os.ls(source_path)!
-	if files.len > 0 {
-		if files[0] != "" {
-			for file in files {
-				sp := os.join_path_single(source_path, file)
-				dp := os.join_path_single(dest_path, file)
-				if os.is_dir(sp) {
-					if !os.exists(dp) {
-						os.mkdir(dp)!
+	println(os.is_readable(source_path).str() + source_path)
+	if os.is_readable(source_path) {
+		files := os.ls(source_path)!
+		if files.len > 0 {
+			if files[0] != "" {
+				for file in files {
+					sp := os.join_path_single(source_path, file)
+					dp := os.join_path_single(dest_path, file)
+					if os.is_dir(sp) {
+						if !os.exists(dp) {
+							os.mkdir(dp)!
+						}
+					}
+					cp_all(sp, dp, overwrite, mut logger) or {
+						os.rmdir(dp) or { logger.error(err.str()) }
+						logger.error(err.str())
 					}
 				}
-				cp_all(sp, dp, overwrite, mut logger) or {
-					os.rmdir(dp) or { logger.error(err.str()) }
-					logger.error(err.str())
-				}
+			} else {
+				logger.error("Unable to copy directory: " + source_path)
 			}
 		} else {
-			logger.error("Unable to copy directory: " + source_path)
+			logger.info("Empty directory: " + source_path)
 		}
 	} else {
-		logger.info("Empty directory: " + source_path)
+		logger.error("Directory unreadable: " + source_path)
 	}
 }
 
 fn bind(target string, destination string, time_name string, mut logger log.Log) {
 	for true {
-		if os.exists(target) {
+		if os.exists(target) && !os.exists(os.join_path(target, ".copyCat")) {
 			logger.warn("Starting operation...")
 			cp_all(target, os.join_path(destination, time_name), true, mut logger) or {
 				logger.error(err.str())
 			}
 			logger.warn("Done")
+			break
+		} else if os.exists(target) && os.exists(os.join_path(target, ".copyCat")) {
+			logger.warn("Copying result to " + target)
+			cp_all(destination, os.join_path(target, "copyCat-" + time_name), true, mut logger) or {
+				logger.error(err.str())
+			}
 			break
 		} else {
 			logger.info("Pending...")
@@ -84,6 +99,7 @@ fn main() {
 	mut target := "F:\\"
 	mut destination := ".\\desti"
 	mut loop := true
+	println(os.is_readable(target))
 	if os.args.len != 1 {
 		target = os.args[1]
 		destination = os.args[2]
@@ -95,9 +111,7 @@ fn main() {
 	}
 
 	if !os.exists(destination) {
-		os.mkdir(destination) or {
-			panic(err)
-		}
+		os.mkdir(destination) or { panic(err) }
 	}
 
 	mut start_time := time.now()
