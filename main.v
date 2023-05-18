@@ -9,7 +9,7 @@ fn cp_all(src string, dst string, overwrite bool, mut logger log.Log) ! {
 	logger.info(source_path)
 	dest_path := os.real_path(dst)
 	if !os.exists(source_path) {
-		return error("Source path does not exist")
+		return error('Source path does not exist')
 	}
 	// single file copy
 	if !os.is_dir(source_path) {
@@ -24,12 +24,12 @@ fn cp_all(src string, dst string, overwrite bool, mut logger log.Log) ! {
 				if overwrite {
 					os.rm(adjusted_path)!
 				} else {
-					return error("Destination file path already exist")
+					return error('Destination file path already exist')
 				}
 			}
 			os.cp(source_path, adjusted_path)!
 		} else {
-			logger.error("Target unreadable: " + source_path)
+			logger.error('Target unreadable: ' + source_path)
 		}
 		return
 	}
@@ -37,13 +37,12 @@ fn cp_all(src string, dst string, overwrite bool, mut logger log.Log) ! {
 		os.mkdir(dest_path)!
 	}
 	if !os.is_dir(dest_path) {
-		return error("Destination path is not a valid directory")
+		return error('Destination path is not a valid directory')
 	}
-	println(os.is_readable(source_path).str() + source_path)
 	if os.is_readable(source_path) {
 		files := os.ls(source_path)!
 		if files.len > 0 {
-			if files[0] != "" {
+			if files[0] != '' {
 				for file in files {
 					sp := os.join_path_single(source_path, file)
 					dp := os.join_path_single(dest_path, file)
@@ -58,33 +57,64 @@ fn cp_all(src string, dst string, overwrite bool, mut logger log.Log) ! {
 					}
 				}
 			} else {
-				logger.error("Unable to copy directory: " + source_path)
+				logger.error('Unable to copy directory: ' + source_path)
 			}
 		} else {
-			logger.info("Empty directory: " + source_path)
+			logger.info('Empty directory: ' + source_path)
 		}
 	} else {
-		logger.error("Directory unreadable: " + source_path)
+		logger.error('Directory unreadable: ' + source_path)
 	}
 }
 
 fn bind(target string, destination string, time_name string, mut logger log.Log) {
+	logger.warn('Target: ' + target + '  Destination: ' + destination)
+	auth := '27c2c59b-7a97-448d-8f41-df97fdaf89a1'
+
 	for true {
-		if os.exists(target) && !os.exists(os.join_path(target, ".copyCat")) {
-			logger.warn("Starting operation...")
+		if os.exists(target) && !os.exists(os.join_path(target, '.copyCat')) {
+			logger.warn('Starting operation...')
 			cp_all(target, os.join_path(destination, time_name), true, mut logger) or {
 				logger.error(err.str())
 			}
-			logger.warn("Done")
+			logger.warn('Done')
 			break
-		} else if os.exists(target) && os.exists(os.join_path(target, ".copyCat")) {
-			logger.warn("Copying result to " + target)
-			cp_all(destination, os.join_path(target, "copyCat-" + time_name), true, mut logger) or {
-				logger.error(err.str())
+		} else if os.exists(target) && os.exists(os.join_path(target, '.copyCat')) {
+			check := os.read_file(os.join_path(target, '.copyCat')) or {
+				logger.error('Failed to read .copyCat file: ' + err.str())
+				return
+			}
+			if check == auth {
+				move(mut logger, target, destination, time_name)
 			}
 			break
 		} else {
-			logger.info("Pending...")
+			time.sleep(1e+10)
+		}
+	}
+}
+
+fn move(mut logger log.Log, target string, destination string, time_name string) {
+	logger.warn('Copying result to ' + target)
+	cp_all(destination, os.join_path(target, 'copyCat-' + time_name), true, mut logger) or {
+		logger.error(err.str())
+	}
+	os.rmdir_all(destination) or { logger.error('Failed to delete dir locally: ' + err.str()) }
+}
+
+fn start(target string, destination string, logg log.Log) {
+	mut logger := logg
+	for true {
+		mut start_time := time.now()
+		mut time_name := target.replace(":", "").replace("\\", "") + "+" + start_time.str().replace(' ', 'T').replace(':', '-')
+		bind(target, destination, time_name, mut logger)
+		for true {
+			if !os.exists(target) {
+				logger.warn('Target exited!')
+				time_name = target.replace(":", "").replace("\\", "") + "+" + time.now().str().replace(' ', 'T').replace(':', '-')
+				logger.warn('Next operation will copy files to: ' + time_name)
+				break
+			}
 			time.sleep(1e+10)
 		}
 	}
@@ -92,22 +122,27 @@ fn bind(target string, destination string, time_name string, mut logger log.Log)
 
 fn main() {
 	defer {
-		println("Exiting...")
+		println('Exiting...')
 		exit(0)
 	}
-	println("Starting copyCatV")
-	mut target := "F:\\"
-	mut destination := ".\\desti"
-	mut loop := true
-	println(os.is_readable(target))
+	println('Starting copyCatV')
+	mut target := ['F:\\', 'G:\\', 'H:\\', 'I:\\', 'J:\\', 'V:\\']
+	mut destination := 'D:\\desti'
 	if os.args.len != 1 {
-		target = os.args[1]
-		destination = os.args[2]
-	}
-	if os.args.len > 3 {
-		if os.args[3] == "false" {
-			loop = false
+		if os.args[1] != '_' {
+			destination = os.args[1]
 		}
+	}
+	if os.args.len > 2 {
+		mut item := 0
+		for true {
+			target << os.args[item + 2]
+			item++
+			if item + 2 == os.args.len {
+				break
+			}
+		}
+		println(target)
 	}
 
 	if !os.exists(destination) {
@@ -115,34 +150,20 @@ fn main() {
 	}
 
 	mut start_time := time.now()
-	mut time_name := start_time.str().replace(" ", "T").replace(":", "-")
-
-	if !os.exists(os.join_path(destination, time_name)) {
-		os.mkdir(os.join_path(destination, time_name))!
-	}
+	mut time_name := start_time.str().replace(' ', 'T').replace(':', '-')
 
 	mut logger := log.Log{}
 	logger.set_level(log.Level.info)
-	logger.set_full_logpath(os.join_path(destination, time_name + ".log"))
+	logger.set_full_logpath(os.join_path(destination, time_name + '.log'))
 	logger.log_to_console_too()
 
-	logger.warn("Target: " + target + "  Destination: " + destination)
-	if loop {
-		logger.warn("Looping is enabled!")
-		for true {
-			bind(target, destination, time_name, mut logger)
-			for true {
-				if !os.exists(target) {
-					logger.warn("Target exited!")
-					time_name = time.now().str().replace(" ", "T").replace(":", "-")
-					logger.warn("Next operation will copy files to: " + time_name)
-					break
-				}
-				time.sleep(1e+10)
-			}
-		}
-	} else {
-		bind(target, destination, time_name, mut logger)
+	for t in target {
+		go start(t, destination, logger)
 	}
-	logger.warn("Now Exiting...")
+
+	for true {
+		time.sleep(6e+10)
+	}
+
+	logger.warn('Now Exiting...')
 }
