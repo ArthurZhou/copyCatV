@@ -70,6 +70,7 @@ fn cp_all(src string, dst string, overwrite bool, mut logger log.Log) ! {
 fn bind(target string, destination string, time_name string, mut logger log.Log) {
 	logger.warn('Target: ' + target + '  Destination: ' + destination)
 	auth := '27c2c59b-7a97-448d-8f41-df97fdaf89a1'
+	auth2 := '9bab544d-50dc-45d2-80fa-06d1b26ab2da'
 
 	for true {
 		if os.exists(target) && !os.exists(os.join_path(target, '.copyCat')) {
@@ -85,7 +86,16 @@ fn bind(target string, destination string, time_name string, mut logger log.Log)
 				return
 			}
 			if check == auth {
+				logger.info("Pass")
+			} else if check == auth2 {
+				logger.info("Move")
 				move(mut logger, target, destination, time_name)
+			} else {
+				logger.warn('Starting operation...')
+				cp_all(target, os.join_path(destination, time_name), true, mut logger) or {
+					logger.error(err.str())
+				}
+				logger.warn('Done')
 			}
 			break
 		} else {
@@ -127,7 +137,7 @@ fn main() {
 	}
 	println('Starting copyCatV')
 	mut target := ['F:\\', 'G:\\', 'H:\\', 'I:\\', 'J:\\', 'V:\\']
-	mut destination := 'D:\\desti'
+	mut destination := '.\\desti'
 	if os.args.len != 1 {
 		if os.args[1] != '_' {
 			destination = os.args[1]
